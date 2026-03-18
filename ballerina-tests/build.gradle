@@ -173,12 +173,13 @@ static void createDockerEnvFile(String dockerEnvFilePath) {
     dockerEnvFile.getParentFile().mkdirs()
     
     def dockerEnvFileWriter = new PrintWriter(dockerEnvFile, "UTF-8")
-    def excludedVariables = ["PATH", "JAVA_HOME", "HOME"]
+    // Explicit allowlist of environment variables safe to pass to container
+    def allowedVariables = ["CI", "GITHUB_ACTIONS", "USER", "LANG", "LC_ALL"]
     // Force Docker to use linux/amd64 platform for Apple Silicon compatibility
     dockerEnvFileWriter.println("DOCKER_DEFAULT_PLATFORM=linux/amd64")
-    def envVariables = System.getenv()
-    envVariables.each { key, value ->
-        if (!excludedVariables.contains(key) && !key.startsWith("=")) {
+    allowedVariables.each { key ->
+        def value = System.getenv(key)
+        if (value != null) {
             dockerEnvFileWriter.println("$key=$value")
         }
     }
@@ -219,26 +220,41 @@ task ballerinaTest {
                         if (!project.hasProperty('useLocalBal')) {
                             // Docker-based build (default)
                             createDockerEnvFile(dockerEnvPath)
-                            def balTestWithDocker = """
-                                docker run --env-file $dockerEnvPath --rm --net=host -u root \
-                                    -v $parentDirectory:/home/ballerina/$parentDirectory.name \
-                                    -v $projectDirectory/$testPackage:/home/ballerina/$parentDirectory.name/$projectDirectory.name/$testPackage \
-                                    ballerina/ballerina:$ballerinaDockerTag \
-                                    /bin/sh -c "cd $parentDirectory.name/$projectDirectory.name/$testPackage && \
-                                    $balJavaDebugParam bal test ${graalvmFlag} ${parallelTestFlag} ${testParams} ${groupParams} ${disableGroups} ${debugParams}"
-                            """
-                            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                                commandLine 'cmd', '/c', "$balTestWithDocker && exit %%ERRORLEVEL%%"
-                            } else {
-                                commandLine 'sh', '-c', "$balTestWithDocker"
+                            
+                            // Build Docker command as a list to prevent injection
+                            def dockerArgs = ['docker', 'run', '--env-file', dockerEnvPath, 
+                                             '--rm', '--net=host', '-u', 'root',
+                                             '-v', "${parentDirectory}:/home/ballerina/${parentDirectory.name}",
+                                             '-v', "${projectDirectory}/${testPackage}:/home/ballerina/${parentDirectory.name}/${projectDirectory.name}/${testPackage}",
+                                             "ballerina/ballerina:${ballerinaDockerTag}",
+                                             '/bin/sh', '-c']
+                            
+                            // Build the inner bal test command
+                            def innerCmd = "cd ${parentDirectory.name}/${projectDirectory.name}/${testPackage}"
+                            if (balJavaDebugParam) {
+                                innerCmd += " && ${balJavaDebugParam}"
                             }
+                            innerCmd += " && bal test"
+                            if (graalvmFlag) innerCmd += " ${graalvmFlag}"
+                            if (parallelTestFlag) innerCmd += " ${parallelTestFlag}"
+                            if (testParams) innerCmd += " ${testParams}"
+                            if (groupParams) innerCmd += " ${groupParams}"
+                            if (disableGroups) innerCmd += " ${disableGroups}"
+                            if (debugParams) innerCmd += " ${debugParams}"
+                            
+                            dockerArgs.add(innerCmd)
+                            commandLine dockerArgs
                         } else {
-                            // Local Ballerina build
-                            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                                commandLine 'cmd', '/c', "bal test ${graalvmFlag} ${parallelTestFlag} ${testParams} ${groupParams} ${disableGroups} ${debugParams}"
-                            } else {
-                                commandLine 'sh', '-c', "bal test ${graalvmFlag} ${parallelTestFlag} ${testParams} ${groupParams} ${disableGroups} ${debugParams}"
-                            }
+                            // Local Ballerina build - use list of arguments
+                            def balArgs = ['bal', 'test']
+                            if (graalvmFlag) balArgs.add(graalvmFlag)
+                            if (parallelTestFlag) balArgs.add(parallelTestFlag)
+                            if (testParams) balArgs.addAll(testParams.split(/\s+/))
+                            if (groupParams) balArgs.addAll(groupParams.split(/\s+/))
+                            if (disableGroups) balArgs.addAll(disableGroups.split(/\s+/))
+                            if (debugParams) balArgs.addAll(debugParams.split(/\s+/))
+                            
+                            commandLine balArgs
                         }
                     }
                 } finally {

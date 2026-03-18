@@ -27,12 +27,27 @@ configurable string runtimeIdFile = ".icp_runtime_id";
 final string currentRuntimeId = check initializeRuntimeId();
 var _ = check observe:addTag("icp.runtimeId", currentRuntimeId);
 
-// Initialize runtime ID - check file first, then generate if needed
+// Initialize runtime ID - check config first, then file, then generate random UUID
 isolated function initializeRuntimeId() returns string|error {
     // Use current working directory for the runtime ID file
     string runtimeIdPath = runtimeIdFile;
 
-    // Check if file exists and read the runtime ID first
+    // First priority: check if configured runtime ID is provided
+    if runtime.trim().length() > 0 {
+        string baseId = runtime.trim();
+        string newRuntimeId = string `${baseId}`;
+
+        // Ensure it doesn't exceed 100 characters
+        if newRuntimeId.length() > 100 {
+            newRuntimeId = newRuntimeId.substring(0, 100);
+        }
+
+        // Persist the configured ID
+        check io:fileWriteString(runtimeIdPath, newRuntimeId);
+        return newRuntimeId;
+    }
+
+    // Second priority: check if file exists and read the persisted runtime ID
     if check file:test(runtimeIdPath, file:EXISTS) {
         string existingId = check io:fileReadString(runtimeIdPath);
         // Validate it's not empty and within valid length (max 100 chars)
@@ -42,20 +57,12 @@ isolated function initializeRuntimeId() returns string|error {
         }
     }
 
-    // Generate new runtime ID if file doesn't exist or is invalid
-    string newRuntimeId;
-    if runtime.trim().length() > 0 {
-        // If configurable ID is provided, use it directly
-        string baseId = runtime.trim();
-        newRuntimeId = string `${baseId}`;
+    // Last resort: generate a random UUID (no MAC/timestamp exposure)
+    string newRuntimeId = uuid:createRandomUuid().toString();
 
-        // Ensure it doesn't exceed 100 characters
-        if newRuntimeId.length() > 100 {
-            newRuntimeId = newRuntimeId.substring(0, 100);
-        }
-    } else {
-        // Generate a full UUID if no configurable ID provided
-        newRuntimeId = uuid:createType1AsString();
+    // Ensure it doesn't exceed 100 characters
+    if newRuntimeId.length() > 100 {
+        newRuntimeId = newRuntimeId.substring(0, 100);
     }
 
     check io:fileWriteString(runtimeIdPath, newRuntimeId);
@@ -133,7 +140,7 @@ isolated function getDeltaHeartbeat(Heartbeat heartbeat) returns DeltaHeartbeat|
     DeltaHeartbeat deltaHeartbeat = {
         runtime: heartbeat.runtime,
         runtimeHash: heartbeat.runtimeHash,
-        timestamp: heartbeat.timestamp
+        timestamp: time:utcNow()
     };
     return deltaHeartbeat;
 }

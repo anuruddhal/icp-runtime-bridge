@@ -29,7 +29,14 @@ service /hello on new http:Listener(testPort) {
         return "Hello, World!";
     }
 
-    resource function get albums/[string title]/[string artist]/[string...]() returns Album[]|http:NotFound {
-        return albums.toArray();
+    resource function get albums/[string title]/[string artist]/[string... tags]() returns Album[]|http:NotFound {
+        Album[] filtered = from Album album in albums
+            where album.title == title && album.artist == artist
+            select album;
+
+        if filtered.length() == 0 {
+            return http:NOT_FOUND;
+        }
+        return filtered;
     }
 }

@@ -47,7 +47,7 @@ function startICPAgent(IcpClient icpClient, IcpConfig config) returns error? {
     // Keep the main function running to allow periodic tasks to execute
     while true {
         // Sleep for a while to prevent busy waiting
-        runtime:sleep(1000);
+        runtime:sleep(1.0);
     }
 }
 
@@ -126,9 +126,9 @@ public class HeartbeatJob {
                         ? startListenerArtifact(artifactName)
                         : stopListenerArtifact(artifactName);
 
-                    if actionResult is error {
-                        log:printError(string `Failed to ${action} listener: ${artifactName}`, actionResult);
-                        result = actionResult;
+                    if actionResult is error || actionResult == false {
+                        log:printError(string `Failed to ${action} listener: ${artifactName}`, actionResult is error ? actionResult : ());
+                        result = actionResult is error ? actionResult : error(string `Failed to ${action} listener: ${artifactName}`);
                     } else {
                         log:printInfo(string `Successfully ${action}ed listener: ${artifactName}`);
                         artifactsChanged = true;

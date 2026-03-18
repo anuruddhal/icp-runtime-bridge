@@ -64,6 +64,9 @@ public class Services {
         List<BListInitialValueEntry> artifactEntries = new ArrayList<>();
         for (Artifact artifact : Artifacts.artifacts) {
             BObject serviceObj = (BObject) artifact.getDetail(SERVICE);
+            if (serviceObj == null) {
+                continue;
+            }
             if (Utils.isicpService(serviceObj, currentModule)) {
                 continue;
             }
@@ -146,14 +149,20 @@ public class Services {
     }
 
     private BArray getServiceListeners(List<BObject> listeners, Module module) {
+        ArrayType arrayType = TypeCreator.createArrayType(TypeUtils.getType(
+                ValueCreator.createRecordValue(module, ARTIFACT)), true);
+
+        // Handle null or empty listeners list
+        if (listeners == null || listeners.isEmpty()) {
+            return ValueCreator.createArrayValue(arrayType, new BListInitialValueEntry[0]);
+        }
+
         BListInitialValueEntry[] listenerEntries = new BListInitialValueEntry[listeners.size()];
         for (int i = 0; i < listeners.size(); i++) {
             BObject listener = listeners.get(i);
             listenerEntries[i] = ValueCreator.createListInitialValueEntry(
                     Utils.getArtifact(LISTENER_NAMES_MAP.get(listener), module));
         }
-        ArrayType arrayType = TypeCreator.createArrayType(TypeUtils.getType(
-                ValueCreator.createRecordValue(module, ARTIFACT)), true);
         return ValueCreator.createArrayValue(arrayType, listenerEntries);
     }
 

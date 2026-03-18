@@ -44,6 +44,7 @@ public client class IcpClient {
             log:printInfo("Delta heartbeat acknowledged by ICP server");
         } else {
             log:printError("Delta heartbeat not acknowledged by ICP server: " + heartbeatResponse.toJsonString());
+            return error("Delta heartbeat not acknowledged");
         }
         return heartbeatResponse;
     }

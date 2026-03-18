@@ -27,7 +27,7 @@ import io.ballerina.runtime.api.values.BObject;
 import io.ballerina.runtime.api.values.BString;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -71,12 +71,15 @@ public class Listeners {
     }
 
     private Set<BObject> getNonDuplicatedListeners(List<Artifact> artifacts, Module currentModule) {
-        Set<BObject> listeners = new HashSet<>();
+        Set<BObject> listeners = new LinkedHashSet<>();
         for (Artifact artifact : artifacts) {
             if (Utils.isicpService((BObject) artifact.getDetail(SERVICE), currentModule)) {
                 continue;
             }
-            listeners.addAll((List<BObject>) artifact.getDetail(LISTENERS));
+            Object listenersDetail = artifact.getDetail(LISTENERS);
+            if (listenersDetail != null && listenersDetail instanceof List) {
+                listeners.addAll((List<BObject>) listenersDetail);
+            }
         }
         return listeners;
     }
