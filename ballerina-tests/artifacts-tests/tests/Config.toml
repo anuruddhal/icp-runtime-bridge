@@ -6,7 +6,7 @@ keyStorePath = "../resources/certsandkeys/ballerinaKeystore.p12"
 trustStorePath = "../resources/certsandkeys/ballerinaTruststore.p12"
 icpServicePort = 9165
 
-[wso2.icp.runtime.bridge.dashboard]
+[icp.runtime.bridge.dashboard]
 url = "https://localhost:9743/dashboard/api"
 heartbeatInterval = 5
 groupId = "bal_dev"
