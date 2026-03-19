@@ -13,43 +13,41 @@
 // limitations under the License.
 
 import ballerina/jwt;
-import ballerina/log;
 
-isolated function parseSecretWithKid(string secret) returns [string?, string] {
-    int? periodIndex = secret.indexOf(".");
-    if periodIndex is int && periodIndex > 0 {
-        string kid = secret.substring(0, periodIndex);
-        string keyMaterial = secret.substring(periodIndex + 1);
-        log:printDebug(string `Parsed secret with kid: ${kid}, keyMaterial length: ${keyMaterial.length()}`);
-        return [kid, keyMaterial];
-    }
-    return [(), secret];
-}
-
-final [string?, string] [kid, keyMaterial] = parseSecretWithKid(secret);
+final [string, string] [keyId, keyMaterial] = check parseSecretWithKeyId(secret);
 
 final readonly & jwt:IssuerSignatureConfig jwtSignatureConfig = {
     algorithm: jwt:HS256,
     config: keyMaterial
 };
 
+isolated function parseSecretWithKeyId(string secret) returns [string, string]|error {
+    int? periodIndex = secret.indexOf(".");
+    string keyId;
+    string keyMaterial;
+
+    if periodIndex is int && periodIndex > 0 {
+        keyId = secret.substring(0, periodIndex);
+        keyMaterial = secret.substring(periodIndex + 1);
+    } else {
+        keyId = "";
+        keyMaterial = secret;
+    }
+    if keyMaterial.toBytes().length() < 32 {
+        return error(string `Key material insufficient for HS256: ${keyMaterial.toBytes().length()} bytes (requires 32 bytes)`);
+    }
+    return [keyId, keyMaterial];
+}
+
 isolated function generateJwtToken() returns string|error {
-    jwt:IssuerConfig issuerConfig = kid is string
-        ? {
-            issuer: jwtIssuer,
-            audience: jwtAudience,
-            customClaims: {"scope": "runtime_agent"},
-            expTime: jwtExpiryTimeSeconds,
-            signatureConfig: jwtSignatureConfig,
-            keyId: kid
-        }
-        : {
-            issuer: jwtIssuer,
-            audience: jwtAudience,
-            customClaims: {"scope": "runtime_agent"},
-            expTime: jwtExpiryTimeSeconds,
-            signatureConfig: jwtSignatureConfig
-        };
+    jwt:IssuerConfig issuerConfig = {
+        issuer: jwtIssuer,
+        audience: jwtAudience,
+        customClaims: {"scope": "runtime_agent"},
+        expTime: jwtExpiryTimeSeconds,
+        signatureConfig: jwtSignatureConfig,
+        keyId: keyId
+    };
     string token = check jwt:issue(issuerConfig);
     return token;
 }
