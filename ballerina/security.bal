@@ -13,22 +13,43 @@
 // limitations under the License.
 
 import ballerina/jwt;
+import ballerina/log;
+
+isolated function parseSecretWithKid(string secret) returns [string?, string] {
+    int? periodIndex = secret.indexOf(".");
+    if periodIndex is int && periodIndex > 0 {
+        string kid = secret.substring(0, periodIndex);
+        string keyMaterial = secret.substring(periodIndex + 1);
+        log:printDebug(string `Parsed secret with kid: ${kid}, keyMaterial length: ${keyMaterial.length()}`);
+        return [kid, keyMaterial];
+    }
+    return [(), secret];
+}
+
+final [string?, string] [kid, keyMaterial] = parseSecretWithKid(secret);
 
 final readonly & jwt:IssuerSignatureConfig jwtSignatureConfig = {
     algorithm: jwt:HS256,
-    config: secret
+    config: keyMaterial
 };
 
 isolated function generateJwtToken() returns string|error {
-    jwt:IssuerConfig issuerConfig = {
-        issuer: jwtIssuer,
-        audience: jwtAudience,
-        customClaims: {
-            "scope": "runtime_agent"
-        },
-        expTime: jwtExpiryTimeSeconds,
-        signatureConfig: jwtSignatureConfig
-    };
-
-    return jwt:issue(issuerConfig);
+    jwt:IssuerConfig issuerConfig = kid is string
+        ? {
+            issuer: jwtIssuer,
+            audience: jwtAudience,
+            customClaims: {"scope": "runtime_agent"},
+            expTime: jwtExpiryTimeSeconds,
+            signatureConfig: jwtSignatureConfig,
+            keyId: kid
+        }
+        : {
+            issuer: jwtIssuer,
+            audience: jwtAudience,
+            customClaims: {"scope": "runtime_agent"},
+            expTime: jwtExpiryTimeSeconds,
+            signatureConfig: jwtSignatureConfig
+        };
+    string token = check jwt:issue(issuerConfig);
+    return token;
 }
