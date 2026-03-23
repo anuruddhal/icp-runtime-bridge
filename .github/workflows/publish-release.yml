@@ -9,6 +9,16 @@ on:
       next-version:
         description: 'Next development version (e.g., 0.1.1-SNAPSHOT)'
         required: true
+      publish-to-central:
+        description: 'Publish to Ballerina Central'
+        required: false
+        type: boolean
+        default: false
+      dry-run:
+        description: 'Dry run mode (skips publish, release creation, and push)'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   publish-release:
@@ -21,6 +31,8 @@ jobs:
       packageUser: ${{ github.actor }}
       packagePAT: ${{ secrets.GITHUB_TOKEN }}
       DOCKER_DEFAULT_PLATFORM: linux/amd64
+      RELEASE_VERSION: ${{ github.event.inputs.release-version }}
+      NEXT_VERSION: ${{ github.event.inputs.next-version }}
     
     steps:
       - name: Checkout Repository
@@ -31,6 +43,11 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
+      
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
       
       - name: Set up Ballerina
         uses: ballerina-platform/setup-ballerina@v1.1.0
@@ -45,27 +62,68 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       
+      - name: Validate release version
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/v$RELEASE_VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag v$RELEASE_VERSION already exists on remote"
+            exit 1
+          fi
+          if ! echo "$RELEASE_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid version format. Expected format: X.Y.Z (e.g., 1.0.0)"
+            exit 1
+          fi
+      
+      - name: Dry Run Mode Notice
+        if: ${{ github.event.inputs.dry-run == 'true' }}
+        run: |
+          echo "::notice::Running in DRY RUN mode - no packages will be published, no releases created, and no changes will be pushed"
+      
       - name: Update version to release version
         run: |
-          sed -i 's/version=.*/version=${{ github.event.inputs.release-version }}/' gradle.properties
-          git add gradle.properties
-          git commit -m "[Release] Release version ${{ github.event.inputs.release-version }}"
+          sed -i "s/version=.*/version=$RELEASE_VERSION/" gradle.properties
+          sed -i "s/version = \".*/version = \"$RELEASE_VERSION\"/" ballerina/Ballerina.toml
+          sed -i "s/icp.runtime.bridge-native-.*.jar/icp.runtime.bridge-native-$RELEASE_VERSION.jar/" ballerina/Ballerina.toml
+          git add gradle.properties ballerina/Ballerina.toml
+          if ! git diff --cached --quiet; then
+            git commit -m "[Release] Release version $RELEASE_VERSION"
+          else
+            echo "::notice::No changes to commit for release version"
+          fi
+      
+      - name: Push release version commit
+        if: ${{ github.event.inputs.dry-run != 'true' }}
+        run: git push origin HEAD:${{ github.ref_name }}
+      
+      - name: Build (Dry Run)
+        if: ${{ github.event.inputs.dry-run == 'true' }}
+        run: ./gradlew clean build --stacktrace --no-daemon
       
       - name: Build and Publish to GitHub Packages
+        if: ${{ github.event.inputs.dry-run != 'true' }}
         run: ./gradlew clean build publish --stacktrace --no-daemon
       
+      - name: Publish to Ballerina Central
+        if: ${{ github.event.inputs.dry-run != 'true' && github.event.inputs.publish-to-central == 'true' }}
+        env:
+          BALLERINA_CENTRAL_ACCESS_TOKEN: ${{ secrets.BALLERINA_CENTRAL_ACCESS_TOKEN }}
+        run: |
+          cd ballerina
+          bal pack
+          bal push
+      
       - name: Create GitHub Release
+        if: ${{ github.event.inputs.dry-run != 'true' }}
         uses: softprops/action-gh-release@v2.6.1
         with:
-          tag_name: v${{ github.event.inputs.release-version }}
-          name: Release v${{ github.event.inputs.release-version }}
+          tag_name: v${{ env.RELEASE_VERSION }}
+          name: Release v${{ env.RELEASE_VERSION }}
           body: |
-            Release of icp-runtime-bridge version ${{ github.event.inputs.release-version }}
+            Release of icp-runtime-bridge version ${{ env.RELEASE_VERSION }}
             
             **Package Details:**
             - Organization: wso2
             - Package: icp.runtime.bridge
-            - Version: ${{ github.event.inputs.release-version }}
+            - Version: ${{ env.RELEASE_VERSION }}
           files: |
             ballerina/build/distributions/*.zip
             ballerina/build/libs/*.jar
@@ -76,7 +134,16 @@ jobs:
       
       - name: Update version to next development version
         run: |
-          sed -i 's/version=.*/version=${{ github.event.inputs.next-version }}/' gradle.properties
-          git add gradle.properties
-          git commit -m "[Release] Prepare for next development iteration ${{ github.event.inputs.next-version }}"
-          git push origin main
+          sed -i "s/version=.*/version=$NEXT_VERSION/" gradle.properties
+          sed -i "s/version = \".*/version = \"$NEXT_VERSION\"/" ballerina/Ballerina.toml
+          sed -i "s/icp.runtime.bridge-native-.*.jar/icp.runtime.bridge-native-$NEXT_VERSION.jar/" ballerina/Ballerina.toml
+          git add gradle.properties ballerina/Ballerina.toml
+          if ! git diff --cached --quiet; then
+            git commit -m "[Release] Prepare for next development iteration $NEXT_VERSION"
+          else
+            echo "::notice::No changes to commit for next development version"
+          fi
+      
+      - name: Push changes
+        if: ${{ github.event.inputs.dry-run != 'true' }}
+        run: git push origin HEAD:${{ github.ref_name }}
