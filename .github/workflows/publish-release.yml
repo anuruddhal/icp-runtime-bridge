@@ -167,7 +167,7 @@ jobs:
       
       - name: Publish to GitHub Packages
         if: ${{ github.event.inputs.dry-run != 'true' }}
-        run: ./gradlew publish --stacktrace --no-daemon
+        run: ./gradlew publish -x build --stacktrace --no-daemon
       
       - name: Create GitHub Release
         if: ${{ github.event.inputs.dry-run != 'true' }}
