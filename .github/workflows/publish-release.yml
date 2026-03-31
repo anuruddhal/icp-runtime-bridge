@@ -145,9 +145,9 @@ jobs:
           git checkout -b "$RELEASE_BRANCH"
           git push -u origin "$RELEASE_BRANCH"
       
-      - name: Build and Publish to GitHub Packages
+      - name: Build artifacts
         if: ${{ github.event.inputs.dry-run != 'true' }}
-        run: ./gradlew clean build publish --stacktrace --no-daemon
+        run: ./gradlew clean build --stacktrace --no-daemon
       
       - name: Publish to Ballerina Central
         if: ${{ github.event.inputs.dry-run != 'true' && github.event.inputs.publish-to-central == 'true' }}
@@ -164,6 +164,10 @@ jobs:
           
           # Push to Ballerina Central
           bal push
+      
+      - name: Publish to GitHub Packages
+        if: ${{ github.event.inputs.dry-run != 'true' }}
+        run: ./gradlew publish --stacktrace --no-daemon
       
       - name: Create GitHub Release
         if: ${{ github.event.inputs.dry-run != 'true' }}
