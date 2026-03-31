@@ -154,8 +154,15 @@ jobs:
         env:
           BALLERINA_CENTRAL_ACCESS_TOKEN: ${{ secrets.BALLERINA_CENTRAL_ACCESS_TOKEN }}
         run: |
+          # Clean target directory to avoid permission issues
+          sudo rm -rf ballerina/target || true
+          
           cd ballerina
+          
+          # Pack the module
           bal pack
+          
+          # Push to Ballerina Central
           bal push
       
       - name: Create GitHub Release
