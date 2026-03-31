@@ -151,6 +151,7 @@ public type ControlCommand record {
 
 public type LoggerLevelPayload record {|
     string componentName;
+    string componentPackage?;
     log:Level logLevel;
 |};
 
