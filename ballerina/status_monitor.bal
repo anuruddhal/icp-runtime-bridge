@@ -58,7 +58,6 @@ isolated function getHeartbeat() returns Heartbeat|error {
     // First create heartbeat data without hash and timestamp
     HeartbeatForHash heartbeatForHash = {
         runtimeId: currentRuntimeId,
-        runtime: runtime,
         runtimeType: BI,
         status: RUNNING,
         nodeInfo: check getBallerinaNode(),
@@ -73,6 +72,11 @@ isolated function getHeartbeat() returns Heartbeat|error {
         logLevels: getLogLevels()
     };
 
+    // Add runtime only if not empty
+    if runtime.trim().length() > 0 {
+        heartbeatForHash.runtime = runtime;
+    }
+
     // Calculate hash from the heartbeat content (excluding timestamp)
     string heartbeatContent = heartbeatForHash.toJsonString();
     string runtimeHash = calculateSimpleHash(heartbeatContent);
@@ -80,7 +84,6 @@ isolated function getHeartbeat() returns Heartbeat|error {
     // Create full heartbeat with hash and timestamp
     Heartbeat heartbeat = {
         runtimeId: heartbeatForHash.runtimeId,
-        runtime: heartbeatForHash.runtime,
         runtimeType: heartbeatForHash.runtimeType,
         status: heartbeatForHash.status,
         nodeInfo: heartbeatForHash.nodeInfo,
@@ -93,6 +96,11 @@ isolated function getHeartbeat() returns Heartbeat|error {
         timestamp: time:utcNow(),
         logLevels: heartbeatForHash.logLevels
     };
+
+    // Add runtime only if not empty
+    if runtime.trim().length() > 0 {
+        heartbeat.runtime = runtime;
+    }
 
     return heartbeat;
 }
