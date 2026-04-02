@@ -73,7 +73,7 @@ isolated function getHeartbeat() returns Heartbeat|error {
     };
 
     // Add runtime only if not empty
-    if runtime.trim().length() > 0 {
+    if runtime is string {
         heartbeatForHash.runtime = runtime;
     }
 
@@ -98,7 +98,7 @@ isolated function getHeartbeat() returns Heartbeat|error {
     };
 
     // Add runtime only if not empty
-    if runtime.trim().length() > 0 {
+    if runtime is string {
         heartbeat.runtime = runtime;
     }
 
