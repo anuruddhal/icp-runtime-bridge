@@ -12,11 +12,6 @@ on:
           - minor
           - major
         default: patch
-      publish-to-central:
-        description: 'Publish to Ballerina Central'
-        required: false
-        type: boolean
-        default: false
       dry-run:
         description: 'Dry run mode (skips publish, release creation, and push)'
         required: false
@@ -29,10 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      packages: write
+      pull-requests: write
     env:
-      packageUser: ${{ github.actor }}
-      packagePAT: ${{ secrets.GITHUB_TOKEN }}
       DOCKER_DEFAULT_PLATFORM: linux/amd64
     
     steps:
@@ -150,7 +143,7 @@ jobs:
         run: ./gradlew clean build --stacktrace --no-daemon
       
       - name: Publish to Ballerina Central
-        if: ${{ github.event.inputs.dry-run != 'true' && github.event.inputs.publish-to-central == 'true' }}
+        if: ${{ github.event.inputs.dry-run != 'true' }}
         env:
           BALLERINA_CENTRAL_ACCESS_TOKEN: ${{ secrets.BALLERINA_CENTRAL_ACCESS_TOKEN }}
         run: |
@@ -164,10 +157,6 @@ jobs:
           
           # Push to Ballerina Central
           bal push
-      
-      - name: Publish to GitHub Packages
-        if: ${{ github.event.inputs.dry-run != 'true' }}
-        run: ./gradlew publish -x build --stacktrace --no-daemon
       
       - name: Create GitHub Release
         if: ${{ github.event.inputs.dry-run != 'true' }}
