@@ -146,8 +146,9 @@ public class HeartbeatJob {
                         } else {
                             log:printInfo(string `Setting log level to ${loggerPayload.logLevel} for logger: ${loggerPayload.componentName}`);
                             string? packageName = loggerPayload.componentPackage;
-                            string loggerId = (packageName is string && packageName.trim().length() > 0)
-                                ? packageName + ":" + loggerPayload.componentName
+                            string trimmedPackage = (packageName is string) ? packageName.trim() : "";
+                            string loggerId = (trimmedPackage.length() > 0)
+                                ? trimmedPackage + ":" + loggerPayload.componentName
                                 : loggerPayload.componentName;
                             result = setLoggerLevel(loggerId, loggerPayload.logLevel);
                             if result is () {
