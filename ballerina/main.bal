@@ -26,7 +26,22 @@ function init() returns error? {
     // Initialize ICP client (JWT is generated internally from config)
     IcpClient icpClient = check new (config);
     log:printInfo("ICP agent initialized with server URL: " + config.serverUrl);
-    _ = check icpClient->sendHeartbeat(check getHeartbeat());
+
+    // Send initial heartbeat to register with ICP server.
+    Heartbeat|error heartbeat = getHeartbeat();
+    if heartbeat is error {
+        log:printError("Failed to create initial heartbeat", heartbeat);
+        return;
+    }
+    HeartbeatResponse|error heartbeatResponse = icpClient->sendHeartbeat(heartbeat);
+    if heartbeatResponse is error {
+        log:printError("Failed to send initial heartbeat", heartbeatResponse);
+        return;
+    }
+    if !heartbeatResponse.acknowledged {
+        log:printError("Initial heartbeat not acknowledged by ICP server");
+        return;
+    }
 
     worker w1 returns error? {
         check startICPAgent(icpClient, config);
