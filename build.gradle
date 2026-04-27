@@ -19,7 +19,6 @@ plugins {
     id "com.github.johnrengelman.shadow" version "${shadowJarPluginVersion}"
     id "de.undercouch.download" version "${downloadPluginVersion}"
     id "net.researchgate.release" version "${releasePluginVersion}"
-    id "io.ballerina.plugin" version "${ballerinaGradlePluginVersion}"
 }
 
 ext.ballerinaLangVersion = project.ballerinaLangVersion
@@ -57,10 +56,7 @@ allprojects {
                 password System.getenv("packagePAT")
             }
         }
-    } dependencies {
-        classpath "io.ballerina:plugin-gradle:${project.ballerinaGradlePluginVersion}"
-    }
-
+    } 
     ext {
         snapshotVersion= '-SNAPSHOT'
         timestampedVersionRegex = '.*-\\d{8}-\\d{6}-\\w.*$'

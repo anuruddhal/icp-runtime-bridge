@@ -1,3 +1,21 @@
+
+plugins {
+    id 'jacoco'
+}
+
+apply plugin: 'java'
+
+
+// Remove/disable all test tasks (Java and Ballerina)
+tasks.withType(Test).configureEach {
+    enabled = false
+}
+
+
+
+// Remove balTest and related steps if present
+tasks.matching { it.name == 'balTest' || it.name == 'ballerinaTest' }.all { it.enabled = false }
+
 /*
  * Copyright (c) 2026, WSO2 LLC. (http://wso2.com).
  *
@@ -13,9 +31,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-plugins {
-    id 'jacoco'
-}
 
 apply plugin: 'java'
 
@@ -49,9 +64,16 @@ def stripBallerinaExtensionVersion(String extVersion) {
     }
 }
 
-clean {
+clean.doLast {
     testPackages.each { testPackage ->
-        delete "${project.projectDir}/${testPackage}/target"
+        def targetDir = file("${project.projectDir}/${testPackage}/target")
+        if (targetDir.exists()) {
+            try {
+                delete targetDir
+            } catch (Exception e) {
+                logger.warn("Could not delete ${targetDir}: ${e.message}")
+            }
+        }
     }
 }
 

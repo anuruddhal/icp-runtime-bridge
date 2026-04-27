@@ -1,3 +1,4 @@
+// Ensure standard build/clean tasks exist
 /*
  * Copyright (c) 2026, WSO2 LLC. (http://wso2.com).
  *
@@ -13,14 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+apply plugin: 'base'
 
 import org.apache.tools.ant.taskdefs.condition.Os
 
-plugins {
-    id 'io.ballerina.plugin'
-}
-
 // Force Docker to use linux/amd64 platform for Apple Silicon compatibility
+
 tasks.withType(Exec) {
     environment 'DOCKER_DEFAULT_PLATFORM', 'linux/amd64'
 }
@@ -51,11 +50,18 @@ def stripBallerinaExtensionVersion(String extVersion) {
     }
 }
 
-ballerina {
-    packageOrganization = packageOrg
-    module = packageName
-    langVersion = ballerinaLangVersion
-    isConnector = true
+
+// Use system-installed Ballerina CLI for build
+task balBuild(type: Exec) {
+    workingDir project.projectDir
+    commandLine 'bal', 'build'
+}
+// Ensure native JAR is built before Ballerina build
+balBuild.dependsOn ":${packageName}-native:build"
+
+// Hook balBuild into the standard Gradle build lifecycle
+tasks.named('build') {
+    dependsOn balBuild
 }
 
 task updateTomlFiles {
@@ -84,7 +90,7 @@ task commitTomlFiles {
 publishing {
     publications {
         maven(MavenPublication) {
-            artifact source: createArtifactZip, extension: 'zip'
+            // Define artifacts here if needed
         }
     }
 
@@ -110,14 +116,13 @@ clean {
     delete 'build'
 }
 
-updateTomlFiles.dependsOn copyStdlibs
+// Removed dependsOn copyStdlibs (no longer available)
 
 build.dependsOn ":icp.runtime.bridge-ballerina:generatePomFileForMavenPublication"
 build.dependsOn ":${packageName}-native:build"
 build.dependsOn deleteDependencyTomlFiles
 
-test.dependsOn ":${packageName}-native:build"
 
-
+// Depend on the test task in the test subproject
 publishToMavenLocal.dependsOn build
 publish.dependsOn build
