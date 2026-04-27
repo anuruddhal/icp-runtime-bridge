@@ -50,13 +50,14 @@ allprojects {
         }
 
         maven {
-            url = 'https://maven.pkg.github.com/ballerina-platform/plugin-gradle'
+            url = 'https://maven.pkg.github.com/ballerina-platform/*'
             credentials {
                 username System.getenv("packageUser")
                 password System.getenv("packagePAT")
             }
         }
-    } 
+    }
+
     ext {
         snapshotVersion= '-SNAPSHOT'
         timestampedVersionRegex = '.*-\\d{8}-\\d{6}-\\w.*$'
