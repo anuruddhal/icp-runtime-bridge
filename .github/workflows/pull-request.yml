@@ -43,7 +43,6 @@ jobs:
       
       - name: Build with Gradle
         run: ./gradlew build --stacktrace --no-daemon
-      
       - name: Run Tests
         run: ./gradlew test --stacktrace --no-daemon
       
