@@ -20,7 +20,6 @@ import ballerina/log;
 import ballerina/observe;
 import ballerina/time;
 import ballerina/uuid;
-import ballerina/workflow.management;
 
 configurable string runtimeIdFile = ".icp_runtime_id";
 
@@ -70,18 +69,13 @@ isolated function getHeartbeat() returns Heartbeat|error {
             services: check getServiceDetails(),
             main: check getMainArtifact()
         },
-        logLevels: getLogLevels()
+        logLevels: getLogLevels(),
+        workflowCallbackUrl: enableWorkflowManagement? getWorkflowCallbackUrl() : ()
     };
 
     // Add runtime only if not empty
     if runtime is string {
         heartbeatForHash.runtime = runtime;
-    }
-
-    // Derive the callback URL from the runtime's HTTP listener, if any
-    string? workflowCallbackUrl = getworkflowCallbackUrl();
-    if workflowCallbackUrl is string {
-        heartbeatForHash.workflowCallbackUrl = workflowCallbackUrl;
     }
 
     // Calculate hash from the heartbeat content (excluding timestamp)
@@ -101,7 +95,8 @@ isolated function getHeartbeat() returns Heartbeat|error {
         artifacts: heartbeatForHash.artifacts,
         runtimeHash: runtimeHash,
         timestamp: time:utcNow(),
-        logLevels: heartbeatForHash.logLevels
+        logLevels: heartbeatForHash.logLevels,
+        workflowCallbackUrl: heartbeatForHash?.workflowCallbackUrl
     };
 
     // Add runtime only if not empty
@@ -109,9 +104,10 @@ isolated function getHeartbeat() returns Heartbeat|error {
         heartbeat.runtime = runtime;
     }
 
-    // Add callback URL only if not empty
-    if workflowCallbackUrl is string {
-        heartbeat.workflowCallbackUrl = workflowCallbackUrl;
+    // Add packed OpenAPI definitions only if there are any to send
+    map<json> packedOpenApiDefinitions = getPackedOpenApiDefinitions();
+    if packedOpenApiDefinitions.length() > 0 {
+        heartbeat.openApiDefinitions = packedOpenApiDefinitions;
     }
 
     return heartbeat;
@@ -190,27 +186,31 @@ isolated function getArtifacts(string resourceType, typedesc<anydata> t) returns
     'class: "io.ballerina.lib.wso2.icp.Artifacts"
 } external;
 
-isolated function getMainArtifact() returns MainDetail|error =
+isolated function getMainArtifact() returns MainDetail?|error =
 @java:Method {
     'class: "io.ballerina.lib.wso2.icp.Artifacts"
 } external;
 
-// Returns the configured host of the first enabled HTTP listener in the runtime.
-// Returns () when no HTTP listener is available.
-isolated function getCallbackHost() returns string? =
-@java:Method {
-    'class: "io.ballerina.lib.wso2.icp.Artifacts"
-} external;
-
-// Builds the callback URL for the workflow management API: the host is taken from
-// the runtime's HTTP listener and the port from the public workflow management
-// `port` config. Returns () when no HTTP listener is available.
-isolated function getworkflowCallbackUrl() returns string? {
-    string? host = getCallbackHost();
-    if host is () {
-        return ();
+isolated function getWorkflowCallbackUrl() returns string {
+    string hostUrl = runtimeHostUrl.trim();
+    // Strip trailing slashes to avoid a malformed "http://host/:port".
+    while hostUrl.endsWith("/") {
+        hostUrl = hostUrl.substring(0, hostUrl.length() - 1);
     }
-    return string `http://${host}:${management:port}`;
+    // Isolate the authority (host[:port]); anything before "://" is the scheme.
+    int? schemeIndex = hostUrl.indexOf("://");
+    int authorityStart = schemeIndex is int ? schemeIndex + 3 : 0;
+    string authority = hostUrl.substring(authorityStart);
+    int? pathIndex = authority.indexOf("/");
+    if pathIndex is int {
+        authority = authority.substring(0, pathIndex);
+    }
+    // If runtimeHostUrl already includes a port, use it as-is rather than
+    // appending the management port and producing "host:8080:9090".
+    if authority.includes(":") {
+        return hostUrl;
+    }
+    return string `${hostUrl}:${workflowManagementApiPort}`;
 }
 
 isolated function stopListenerArtifact(string name) returns boolean|error =
