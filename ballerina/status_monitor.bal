@@ -20,7 +20,6 @@ import ballerina/log;
 import ballerina/observe;
 import ballerina/time;
 import ballerina/uuid;
-import ballerina/workflow.management;
 
 configurable string runtimeIdFile = ".icp_runtime_id";
 
@@ -71,7 +70,7 @@ isolated function getHeartbeat() returns Heartbeat|error {
             main: check getMainArtifact()
         },
         logLevels: getLogLevels(),
-        workflowCallbackUrl: management:enableManagementApi? getWorkflowCallbackUrl() : ()
+        workflowCallbackUrl: getWorkflowCallbackUrl()
     };
 
     // Add runtime only if not empty
@@ -205,7 +204,7 @@ isolated function getWorkflowCallbackUrl() returns string {
     if authority.includes(":") {
         return baseUrl;
     }
-    return string `${baseUrl}:${management:port}`;
+    return string `${baseUrl}:${workflowManagementApiPort}`;
 }
 
 isolated function stopListenerArtifact(string name) returns boolean|error =

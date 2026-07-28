@@ -29,6 +29,7 @@ configurable string project = "default_project";
 configurable string secret = ?;
 
 configurable string runtimeBaseUrl = "http://localhost";
+configurable string workflowManagementApiPort = "8234";
 
 public function loadConfig() returns IcpConfig|error {
     IcpConfig config = {
