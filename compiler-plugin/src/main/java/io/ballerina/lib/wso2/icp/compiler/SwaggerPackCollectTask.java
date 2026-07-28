@@ -197,7 +197,8 @@ public class SwaggerPackCollectTask implements AnalysisTask<CompilationAnalysisC
                     .reduce((a, b) -> a + " | " + b).orElse("no diagnostics reported");
             ctx.reportDiagnostic(warning(PluginConstants.SKIPPED_SERVICE_CODE,
                     "swagger-pack: unable to generate an OpenAPI definition for service "
-                            + PluginConstants.escapeForDiagnostic(basePath) + ", skipping (" + detail + ")"));
+                            + PluginConstants.escapeForDiagnostic(basePath) + ", skipping ("
+                            + PluginConstants.escapeForDiagnostic(detail) + ")"));
             return;
         }
 
