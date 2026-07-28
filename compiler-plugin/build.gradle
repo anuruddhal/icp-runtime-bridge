@@ -53,6 +53,11 @@ dependencies {
         exclude group: 'io.swagger.core.v3', module: 'swagger-models-jakarta'
     }
     implementation group: 'io.swagger.core.v3', name: 'swagger-models', version: "${swaggerCoreVersion}"
+
+    // swagger-core (above) pulls in slf4j-api transitively with no binding, which prints
+    // "Failed to load class StaticLoggerBinder" on every bal build/run of a package that
+    // imports this plugin. A no-op binding silences it without behavior changes.
+    implementation group: 'org.slf4j', name: 'slf4j-nop', version: "${slf4jVersion}"
 }
 
 java {
