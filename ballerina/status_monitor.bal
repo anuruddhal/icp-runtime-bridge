@@ -70,7 +70,8 @@ isolated function getHeartbeat() returns Heartbeat|error {
             main: check getMainArtifact()
         },
         logLevels: getLogLevels(),
-        workflowCallbackUrl: enableWorkflowManagement? getWorkflowCallbackUrl() : ()
+        workflowCallbackUrl: enableWorkflowManagement? getWorkflowCallbackUrl() : (),
+        tryItHost: getTryItHost()
     };
 
     // Add runtime only if not empty
@@ -96,7 +97,8 @@ isolated function getHeartbeat() returns Heartbeat|error {
         runtimeHash: runtimeHash,
         timestamp: time:utcNow(),
         logLevels: heartbeatForHash.logLevels,
-        workflowCallbackUrl: heartbeatForHash?.workflowCallbackUrl
+        workflowCallbackUrl: heartbeatForHash?.workflowCallbackUrl,
+        tryItHost: heartbeatForHash?.tryItHost
     };
 
     // Add runtime only if not empty
@@ -191,7 +193,11 @@ isolated function getMainArtifact() returns MainDetail?|error =
     'class: "io.ballerina.lib.wso2.icp.Artifacts"
 } external;
 
-isolated function getWorkflowCallbackUrl() returns string {
+// Strips trailing slashes and any path segment from the configured runtimeHostUrl, returning
+// both the cleaned scheme+host[:port] and the bare authority (host[:port], no scheme) — shared
+// by getWorkflowCallbackUrl (needs the scheme, to build a callable base URL) and getTryItHost
+// (needs just the host, since the Try-It proxy already knows the target port separately).
+isolated function getConfiguredHostUrl() returns [string, string] {
     string hostUrl = runtimeHostUrl.trim();
     // Strip trailing slashes to avoid a malformed "http://host/:port".
     while hostUrl.endsWith("/") {
@@ -204,13 +210,28 @@ isolated function getWorkflowCallbackUrl() returns string {
     int? pathIndex = authority.indexOf("/");
     if pathIndex is int {
         authority = authority.substring(0, pathIndex);
+        hostUrl = hostUrl.substring(0, authorityStart) + authority;
     }
+    return [hostUrl, authority];
+}
+
+isolated function getWorkflowCallbackUrl() returns string {
+    var [hostUrl, authority] = getConfiguredHostUrl();
     // If runtimeHostUrl already includes a port, use it as-is rather than
     // appending the management port and producing "host:8080:9090".
     if authority.includes(":") {
         return hostUrl;
     }
     return string `${hostUrl}:${workflowManagementApiPort}`;
+}
+
+// Bare, reachable host/IP for this runtime (no scheme, no port) reported in every heartbeat so
+// the ICP server can route Try-It proxy requests to it — the per-listener host captured
+// separately (Listeners.java) is often a bind-all address like 0.0.0.0, not a usable target.
+isolated function getTryItHost() returns string {
+    var [_, authority] = getConfiguredHostUrl();
+    int? portIndex = authority.indexOf(":");
+    return portIndex is int ? authority.substring(0, portIndex) : authority;
 }
 
 isolated function stopListenerArtifact(string name) returns boolean|error =
