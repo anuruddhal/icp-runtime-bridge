@@ -70,7 +70,7 @@ isolated function getHeartbeat() returns Heartbeat|error {
             main: check getMainArtifact()
         },
         logLevels: getLogLevels(),
-        workflowCallbackUrl: getWorkflowCallbackUrl()
+        workflowCallbackUrl: enableWorkflowManagement? getWorkflowCallbackUrl() : ()
     };
 
     // Add runtime only if not empty
@@ -96,7 +96,7 @@ isolated function getHeartbeat() returns Heartbeat|error {
         runtimeHash: runtimeHash,
         timestamp: time:utcNow(),
         logLevels: heartbeatForHash.logLevels,
-        workflowCallbackUrl: heartbeatForHash.workflowCallbackUrl
+        workflowCallbackUrl: heartbeatForHash?.workflowCallbackUrl
     };
 
     // Add runtime only if not empty
