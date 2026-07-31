@@ -170,6 +170,11 @@ public type HeartbeatResponse record {
     boolean acknowledged;
     boolean fullHeartbeatRequired?;
     ControlCommand[] commands = [];
+    // Names of optional Heartbeat fields the connected ICP server understands (e.g.
+    // "tryItHost", "openApiDefinitions", "workflowCallbackUrl"). Absent on servers that
+    // predate this negotiation (they simply reject those fields), so the bridge must
+    // treat a missing value as "no optional fields supported" rather than an error.
+    string[] supportedHeartbeatFields?;
 };
 
 // === Configuration ===

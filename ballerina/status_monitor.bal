@@ -54,7 +54,11 @@ isolated function initializeRuntimeId() returns string|error {
     return newRuntimeId;
 }
 
-isolated function getHeartbeat() returns Heartbeat|error {
+// Names the ICP server advertised as understood via the last heartbeat response's
+// `supportedHeartbeatFields`. Empty until a server says otherwise, which keeps a fresh
+// bridge (or one talking to a server that predates this negotiation) safely limited to
+// the baseline field set every ICP server release has always accepted.
+isolated function getHeartbeat(string[] supportedHeartbeatFields = []) returns Heartbeat|error {
     // First create heartbeat data without hash and timestamp
     HeartbeatForHash heartbeatForHash = {
         runtimeId: currentRuntimeId,
@@ -70,8 +74,9 @@ isolated function getHeartbeat() returns Heartbeat|error {
             main: check getMainArtifact()
         },
         logLevels: getLogLevels(),
-        workflowCallbackUrl: enableWorkflowManagement? getWorkflowCallbackUrl() : (),
-        tryItHost: getTryItHost()
+        workflowCallbackUrl: (enableWorkflowManagement && isHeartbeatFieldSupported(supportedHeartbeatFields, "workflowCallbackUrl"))
+            ? getWorkflowCallbackUrl() : (),
+        tryItHost: isHeartbeatFieldSupported(supportedHeartbeatFields, "tryItHost") ? getTryItHost() : ()
     };
 
     // Add runtime only if not empty
@@ -106,13 +111,19 @@ isolated function getHeartbeat() returns Heartbeat|error {
         heartbeat.runtime = runtime;
     }
 
-    // Add packed OpenAPI definitions only if there are any to send
-    map<json> packedOpenApiDefinitions = getPackedOpenApiDefinitions();
-    if packedOpenApiDefinitions.length() > 0 {
-        heartbeat.openApiDefinitions = packedOpenApiDefinitions;
+    // Add packed OpenAPI definitions only if the server supports them and there are any to send
+    if isHeartbeatFieldSupported(supportedHeartbeatFields, "openApiDefinitions") {
+        map<json> packedOpenApiDefinitions = getPackedOpenApiDefinitions();
+        if packedOpenApiDefinitions.length() > 0 {
+            heartbeat.openApiDefinitions = packedOpenApiDefinitions;
+        }
     }
 
     return heartbeat;
+}
+
+isolated function isHeartbeatFieldSupported(string[] supportedHeartbeatFields, string fieldName) returns boolean {
+    return supportedHeartbeatFields.indexOf(fieldName) is int;
 }
 
 isolated function getLogLevels() returns map<log:Level> {
