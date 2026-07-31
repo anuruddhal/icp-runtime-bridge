@@ -127,7 +127,15 @@ public class HeartbeatJob {
             return;
         }
         self.fullHeartbeatRequired = heartbeatResponse.fullHeartbeatRequired ?: false;
-        self.supportedHeartbeatFields = heartbeatResponse.supportedHeartbeatFields ?: [];
+        string[] newSupportedHeartbeatFields = heartbeatResponse.supportedHeartbeatFields ?: [];
+        if newSupportedHeartbeatFields != self.supportedHeartbeatFields {
+            // Server's understood field set changed since the last ack (e.g. it was
+            // upgraded mid-connection) — send a full heartbeat next so newly available (or
+            // newly unsupported) optional fields take effect promptly instead of waiting on
+            // an unrelated trigger for the next full heartbeat.
+            self.fullHeartbeatRequired = true;
+        }
+        self.supportedHeartbeatFields = newSupportedHeartbeatFields;
         log:printDebug("Heartbeat acknowledged by ICP server");
         self.handleControlCommands(heartbeatResponse.commands);
     }
