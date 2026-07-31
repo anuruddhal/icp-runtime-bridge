@@ -107,11 +107,12 @@ public class Listeners {
         } else {
             listenerRecord.put(StringUtils.fromString(PROTOCOL),
                     StringUtils.fromString(typePackage.getName()));
-            // Non-HTTP listeners (e.g. graphql:Listener) typically do not declare a 'port'
-            // field directly; the port is stored inside an inner http:Listener field.
-            // Try direct field first, then fall back to scanning for a nested http:Listener.
+            // Non-HTTP listeners (e.g. graphql:Listener) typically do not declare 'port'/'host'
+            // fields directly; both are stored inside an inner http:Listener field.
+            // Try a direct field first, then fall back to scanning for a nested http:Listener.
             if (listenerType instanceof ObjectType objectType) {
                 extractPort(listener, objectType, listenerRecord);
+                extractHost(listener, objectType, listenerRecord);
             }
         }
 
@@ -144,6 +145,52 @@ public class Listeners {
             }
             return;
         }
+        BObject nested = findNestedHttpListener(listener, objectType);
+        if (nested == null) {
+            return;
+        }
+        Object port = nested.get(StringUtils.fromString(PORT));
+        if (port != null) {
+            record.put(StringUtils.fromString(PORT), port);
+        }
+    }
+
+    /**
+     * Attempts to populate the HOST entry in {@code record} for a non-HTTP listener.
+     * Checks for a direct 'host' field first; if absent, scans object fields for a nested
+     * http:Listener and reads its host out of its inferredConfig (covers graphql:Listener,
+     * which stores the host in an internal httpListener field the same way it stores the port).
+     */
+    private static void extractHost(BObject listener, ObjectType objectType,
+                                    BMap<BString, Object> record) {
+        if (objectType.getFields().containsKey(HOST)) {
+            Object host = listener.get(StringUtils.fromString(HOST));
+            if (host != null) {
+                record.put(StringUtils.fromString(HOST), StringUtils.fromString(host.toString()));
+            }
+            return;
+        }
+        BObject nested = findNestedHttpListener(listener, objectType);
+        if (nested == null) {
+            return;
+        }
+        BMap<BString, Object> config =
+                (BMap<BString, Object>) nested.get(StringUtils.fromString(INFERRED_CONFIG));
+        if (config == null) {
+            return;
+        }
+        Object host = config.get(StringUtils.fromString(HOST));
+        if (host != null) {
+            record.put(StringUtils.fromString(HOST), StringUtils.fromString(host.toString()));
+        }
+    }
+
+    /**
+     * Scans {@code objectType}'s fields for a nested http:Listener-typed value (the pattern
+     * used by wrapper listeners like graphql:Listener and ai:Listener, which compose an
+     * http:Listener privately rather than extending it).
+     */
+    private static BObject findNestedHttpListener(BObject listener, ObjectType objectType) {
         for (String fieldName : objectType.getFields().keySet()) {
             try {
                 Object fv = listener.get(StringUtils.fromString(fieldName));
@@ -156,15 +203,12 @@ public class Listeners {
                         || !"http".equals(nestedPkg.getName())) {
                     continue;
                 }
-                Object port = nested.get(StringUtils.fromString(PORT));
-                if (port != null) {
-                    record.put(StringUtils.fromString(PORT), port);
-                    return;
-                }
+                return nested;
             } catch (RuntimeException ignored) {
                 // Field not accessible or not a BObject — skip.
             }
         }
+        return null;
     }
 
 }
