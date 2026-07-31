@@ -27,31 +27,43 @@ function init() returns error? {
     IcpClient icpClient = check new (config);
     log:printInfo("ICP agent initialized with server URL: " + config.serverUrl);
 
-    // Send initial heartbeat to register with ICP server.
-    Heartbeat|error heartbeat = getHeartbeat();
-    if heartbeat is error {
-        log:printError("Failed to create initial heartbeat", heartbeat);
+    // Send initial heartbeat to register with ICP server. Fields the ICP server confirmed
+    // it understands come back on this same call — no extra round-trip needed to discover
+    // them.
+    string[]|error supportedFieldsResult = sendInitialHeartbeat(icpClient);
+    if supportedFieldsResult is error {
+        log:printError("Failed initial heartbeat registration with ICP server", supportedFieldsResult);
         return;
     }
-    HeartbeatResponse|error heartbeatResponse = icpClient->sendHeartbeat(heartbeat);
-    if heartbeatResponse is error {
-        log:printError("Failed to send initial heartbeat", heartbeatResponse);
-        return;
-    }
-    if !heartbeatResponse.acknowledged {
-        log:printError("Initial heartbeat not acknowledged by ICP server");
-        return;
-    }
+    string[] supportedFields = supportedFieldsResult;
 
     worker w1 returns error? {
-        check startICPAgent(icpClient, config);
+        check startICPAgent(icpClient, config, supportedFields);
     }
 
 }
 
-function startICPAgent(IcpClient icpClient, IcpConfig config) returns error? {
+function sendInitialHeartbeat(IcpClient icpClient) returns string[]|error {
+    Heartbeat|error heartbeat = getHeartbeat();
+    if heartbeat is error {
+        log:printError("Failed to create initial heartbeat", heartbeat);
+        return heartbeat;
+    }
+    HeartbeatResponse|error heartbeatResponse = icpClient->sendHeartbeat(heartbeat);
+    if heartbeatResponse is error {
+        log:printError("Failed to send initial heartbeat", heartbeatResponse);
+        return heartbeatResponse;
+    }
+    if !heartbeatResponse.acknowledged {
+        log:printError("Initial heartbeat not acknowledged by ICP server");
+        return error("Initial heartbeat not acknowledged by ICP server");
+    }
+    return heartbeatResponse.supportedHeartbeatFields ?: [];
+}
+
+function startICPAgent(IcpClient icpClient, IcpConfig config, string[] supportedHeartbeatFields) returns error? {
     // Start periodic heartbeat
-    HeartbeatJob heartbeatJob = check new (icpClient, <decimal>config.heartbeatInterval);
+    HeartbeatJob heartbeatJob = check new (icpClient, <decimal>config.heartbeatInterval, supportedHeartbeatFields);
     task:JobId|task:Error result = task:scheduleJobRecurByFrequency(heartbeatJob, <decimal>config.heartbeatInterval);
     if result is task:Error {
         log:printError("Failed to start heartbeat job", result);
@@ -75,11 +87,13 @@ public class HeartbeatJob {
     private int attemptCount = 0;
     private Heartbeat heartbeat;
     private boolean fullHeartbeatRequired = true;
+    private string[] supportedHeartbeatFields;
 
-    public function init(IcpClient icpClient, decimal interval) returns error? {
+    public function init(IcpClient icpClient, decimal interval, string[] supportedHeartbeatFields = []) returns error? {
         self.icpClient = icpClient;
         self.interval = interval;
-        self.heartbeat = check getHeartbeat();
+        self.supportedHeartbeatFields = supportedHeartbeatFields;
+        self.heartbeat = check getHeartbeat(self.supportedHeartbeatFields);
     }
 
     # Executes the heartbeat job.
@@ -87,7 +101,7 @@ public class HeartbeatJob {
 
         HeartbeatResponse|error heartbeatResponse;
         if (self.fullHeartbeatRequired) {
-            Heartbeat|error newHeartbeat = getHeartbeat();
+            Heartbeat|error newHeartbeat = getHeartbeat(self.supportedHeartbeatFields);
             if newHeartbeat is error {
                 log:printError("Failed to create full heartbeat", newHeartbeat);
                 return;
@@ -113,6 +127,15 @@ public class HeartbeatJob {
             return;
         }
         self.fullHeartbeatRequired = heartbeatResponse.fullHeartbeatRequired ?: false;
+        string[] newSupportedHeartbeatFields = heartbeatResponse.supportedHeartbeatFields ?: [];
+        if newSupportedHeartbeatFields != self.supportedHeartbeatFields {
+            // Server's understood field set changed since the last ack (e.g. it was
+            // upgraded mid-connection) — send a full heartbeat next so newly available (or
+            // newly unsupported) optional fields take effect promptly instead of waiting on
+            // an unrelated trigger for the next full heartbeat.
+            self.fullHeartbeatRequired = true;
+        }
+        self.supportedHeartbeatFields = newSupportedHeartbeatFields;
         log:printDebug("Heartbeat acknowledged by ICP server");
         self.handleControlCommands(heartbeatResponse.commands);
     }
@@ -186,7 +209,7 @@ public class HeartbeatJob {
         }
 
         if artifactsChanged {
-            Heartbeat|error newHeartbeat = getHeartbeat();
+            Heartbeat|error newHeartbeat = getHeartbeat(self.supportedHeartbeatFields);
             if newHeartbeat is error {
                 log:printError("Failed to create full heartbeat after control command", newHeartbeat);
                 return;
