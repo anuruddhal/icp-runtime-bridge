@@ -96,7 +96,8 @@ jobs:
           sed -i "s/version=.*-SNAPSHOT/version=$RELEASE_VERSION/" gradle.properties
           sed -i "s/version = \".*-SNAPSHOT\"/version = \"$RELEASE_VERSION\"/" ballerina/Ballerina.toml
           sed -i "s/icp.runtime.bridge-native-.*-SNAPSHOT.jar/icp.runtime.bridge-native-$RELEASE_VERSION.jar/" ballerina/Ballerina.toml
-          git add gradle.properties ballerina/Ballerina.toml
+          sed -i "s/icp.runtime.bridge-compiler-plugin-.*-SNAPSHOT.jar/icp.runtime.bridge-compiler-plugin-$RELEASE_VERSION.jar/" ballerina/CompilerPlugin.toml
+          git add gradle.properties ballerina/Ballerina.toml ballerina/CompilerPlugin.toml
           if ! git diff --cached --quiet; then
             git commit -m "[Release] Release version $RELEASE_VERSION"
           else
@@ -164,7 +165,8 @@ jobs:
           sed -i "s/version=.*/version=$NEXT_VERSION/" gradle.properties
           sed -i "s/version = \".*/version = \"$NEXT_VERSION\"/" ballerina/Ballerina.toml
           sed -i "s/icp.runtime.bridge-native-.*.jar/icp.runtime.bridge-native-$NEXT_VERSION.jar/" ballerina/Ballerina.toml
-          git add gradle.properties ballerina/Ballerina.toml
+          sed -i "s/icp.runtime.bridge-compiler-plugin-.*.jar/icp.runtime.bridge-compiler-plugin-$NEXT_VERSION.jar/" ballerina/CompilerPlugin.toml
+          git add gradle.properties ballerina/Ballerina.toml ballerina/CompilerPlugin.toml
           if ! git diff --cached --quiet; then
             git commit -m "[Release] Prepare for next development iteration $NEXT_VERSION"
           else
