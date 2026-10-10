@@ -6,7 +6,7 @@ class = "io.ballerina.lib.wso2.icp.compiler.SwaggerPackCompilerPlugin"
 path = "lib/icp.runtime.bridge-compiler-plugin-1.0.2-SNAPSHOT.jar"
 
 [[dependency]]
-path = "lib/ballerina-to-openapi-2.4.0.jar"
+path = "lib/ballerina-to-openapi-2.4.1.jar"
 
 [[dependency]]
 path = "lib/swagger-core-jakarta-2.2.10.jar"
