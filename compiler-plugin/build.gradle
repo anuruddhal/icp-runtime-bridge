@@ -38,11 +38,11 @@ def compilerApiJars = fileTree("${ballerinaHome}/bre/lib").matching {
 }
 
 // The distribution's bala repo ships exactly one http version, and which one depends on the
-// distribution (2201.13.2 → 2.15.4, 2201.13.4 → 2.16.3). Pinning that version in a property
+// distribution (2201.13.2 → 2.15.4, 2201.13.4 → 2.16.3, 2201.14.0 → 2.18.0). Pinning that version in a property
 // broke whichever environment ran the other distribution — local or CI — so the lookup takes
 // whatever version the distribution in use actually shipped.
 def openapiMapperJar = fileTree("${ballerinaHome}/repo/bala/ballerina/http").matching {
-    include '*/java21/compiler-plugin/**/ballerina-to-openapi-*.jar'
+    include '*/java25/compiler-plugin/**/ballerina-to-openapi-*.jar'
 }
 
 dependencies {
@@ -65,8 +65,8 @@ dependencies {
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
 }
 
 def excludePattern = '**/module-info.java'
